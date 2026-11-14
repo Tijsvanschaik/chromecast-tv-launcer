@@ -22,7 +22,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             GlassTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    HomeScreen()
+                    val (repository, actions) = rememberAppsRuntime()
+                    HomeScreen(repository = repository, actions = actions)
                 }
             }
         }
