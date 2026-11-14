@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="base">#0B0D10</color>
+    <color name="banner_fill">#141820</color>
+    <color name="banner_edge">#2A313C</color>
+</resources>
