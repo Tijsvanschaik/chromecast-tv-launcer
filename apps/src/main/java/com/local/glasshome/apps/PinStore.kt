@@ -33,7 +33,8 @@ class PinStore(private val dataStore: DataStore<Preferences>) {
     suspend fun recordRefresh(seedPackages: List<String>) {
         dataStore.edit { prefs ->
             migrateV1(prefs)
-            if (prefs[INITIALIZED] != true) {
+            // An empty seed (no must-keep installed yet, or a transient empty query) must not use up first-run seeding.
+            if (prefs[INITIALIZED] != true && seedPackages.isNotEmpty()) {
                 prefs[PINS] = seedPackages.distinct().take(SOFT_CAP).joinToString("\n")
                 prefs[INITIALIZED] = true
             }

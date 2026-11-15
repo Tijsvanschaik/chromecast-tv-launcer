@@ -16,9 +16,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -54,8 +54,9 @@ fun AppTile(
     val colors = GlassTheme.colors
     val type = GlassTheme.type
     val packageManager = LocalContext.current.packageManager
-    val art by produceState(AppArtCache.peek(app.packageName), app.packageName) {
-        value = AppArtCache.load(packageManager, app)
+    var art by remember(app.packageName) { mutableStateOf(AppArtCache.peek(app.packageName)) }
+    LaunchedEffect(app.packageName) {
+        art = AppArtCache.load(packageManager, app)
     }
     var focused by remember { mutableStateOf(false) }
     val isBanner = art?.isBanner == true

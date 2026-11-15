@@ -11,7 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.produceState
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -54,8 +54,9 @@ fun NatureBackground(
         }
     }
 
-    val plate by produceState<ImageBitmap?>(initialValue = null, slot) {
-        value = withContext(Dispatchers.IO) { decodeStill(assets, STILLS[slot % STILLS.size]) }
+    var plate by remember { mutableStateOf<ImageBitmap?>(null) }
+    LaunchedEffect(slot) {
+        plate = withContext(Dispatchers.IO) { decodeStill(assets, STILLS[slot % STILLS.size]) }
     }
 
     Crossfade(

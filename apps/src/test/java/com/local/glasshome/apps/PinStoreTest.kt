@@ -50,6 +50,13 @@ class PinStoreTest {
     }
 
     @Test
+    fun emptySeedDoesNotUseUpFirstRunSeeding() = runBlocking {
+        store.recordRefresh(emptyList())
+        store.recordRefresh(listOf("com.netflix.ninja"))
+        assertEquals(listOf("com.netflix.ninja"), pins())
+    }
+
+    @Test
     fun unpinPersistsAcrossRefresh() = runBlocking {
         store.recordRefresh(listOf("a", "b"))
         store.setPinned("a", pinned = false)
