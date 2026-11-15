@@ -1,20 +1,18 @@
 package com.local.glasshome.apps
 
-import androidx.compose.ui.graphics.ImageBitmap
-
 data class AppEntry(
     val packageName: String,
     val activityName: String,
     val label: String,
-    val icon: ImageBitmap?,
     val isLeanback: Boolean,
-) {
-    val componentKey: String get() = "$packageName/$activityName"
-}
+)
 
 data class AppsUiModel(
     val favorites: List<AppEntry> = emptyList(),
     val grid: List<AppEntry> = emptyList(),
+    val hidden: Set<String> = emptySet(),
+    val hiddenInstalledCount: Int = 0,
+    val showingHidden: Boolean = false,
     val isEmpty: Boolean = false,
     val emptyHint: String? = null,
     val loading: Boolean = true,

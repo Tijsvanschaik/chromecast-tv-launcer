@@ -3,14 +3,11 @@ package com.local.glasshome.apps
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ResolveInfo
-import android.graphics.Bitmap
 import android.os.Build
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.core.graphics.drawable.toBitmap
 
 /**
  * Queries MAIN/LEANBACK_LAUNCHER then MAIN/LAUNCHER.
- * Dedupes by package and prefers the leanback activity.
+ * Dedupes by package and prefers the leanback activity. Labels only; art loads lazily per tile.
  */
 class InstalledAppsRepository(
     private val packageManager: PackageManager,
@@ -20,14 +17,14 @@ class InstalledAppsRepository(
         for (info in query(Intent.CATEGORY_LEANBACK_LAUNCHER)) {
             val entry = toEntry(info, leanback = true) ?: continue
             if (entry.packageName == OWN_PACKAGE) continue
-            byPackage[entry.packageName] = entry
+            byPackage.putIfAbsent(entry.packageName, entry)
         }
         for (info in query(Intent.CATEGORY_LAUNCHER)) {
             val entry = toEntry(info, leanback = false) ?: continue
             if (entry.packageName == OWN_PACKAGE) continue
             byPackage.putIfAbsent(entry.packageName, entry)
         }
-        return sortInstalled(byPackage.values.toList()) { it.label }
+        return sortInstalled(byPackage.values.toList(), { it.label }, { it.packageName })
     }
 
     private fun query(category: String): List<ResolveInfo> {
@@ -53,16 +50,10 @@ class InstalledAppsRepository(
         if (!activity.enabled) return null
         val label = info.loadLabel(packageManager)?.toString()?.trim().orEmpty()
         if (label.isEmpty()) return null
-        val icon = runCatching {
-            info.loadIcon(packageManager)
-                ?.toBitmap(128, 128, Bitmap.Config.ARGB_8888)
-                ?.asImageBitmap()
-        }.getOrNull()
         return AppEntry(
             packageName = activity.packageName,
             activityName = activity.name,
             label = label,
-            icon = icon,
             isLeanback = leanback,
         )
     }

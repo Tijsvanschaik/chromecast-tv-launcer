@@ -4,61 +4,66 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
 import com.local.glasshome.apps.AppEntry
-import com.local.glasshome.apps.AppsController
-import com.local.glasshome.apps.AppsGrid
+import com.local.glasshome.apps.AppsViewModel
 import com.local.glasshome.apps.FavoritesRow
-import com.local.glasshome.apps.SettingsAction
+import com.local.glasshome.apps.appsGrid
 import com.local.glasshome.background.NatureBackground
-import com.local.glasshome.background.NatureBackgroundMode
-import com.local.glasshome.glass.GlassCard
+import com.local.glasshome.glass.GlassPill
 import com.local.glasshome.glass.GlassScrim
 import com.local.glasshome.glass.GlassTheme
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-fun HomeScreen() {
-    val context = LocalContext.current
-    val controller = remember { AppsController(context) }
-    DisposableEffect(controller) {
-        onDispose { controller.close() }
-    }
-    val model by controller.model.collectAsState()
-    val banner by controller.banner.collectAsState()
+fun HomeScreen(vm: AppsViewModel = viewModel()) {
+    val model by vm.model.collectAsState()
+    val banner by vm.banner.collectAsState()
     var actionsFor by remember { mutableStateOf<AppEntry?>(null) }
+    var actionsFromFavorites by remember { mutableStateOf(false) }
+    var moving by remember { mutableStateOf<AppEntry?>(null) }
+    var refocusFirst by remember { mutableStateOf(false) }
     val dimens = GlassTheme.dimens
     val colors = GlassTheme.colors
     val type = GlassTheme.type
 
     var entered by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { entered = true }
-    val enterAlpha by animateFloatAsState(
+    val enter by animateFloatAsState(
         targetValue = if (entered) 1f else 0f,
         animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
         label = "rowEnter",
@@ -66,128 +71,106 @@ fun HomeScreen() {
 
     val firstFocus = remember { FocusRequester() }
     var didInitialFocus by remember { mutableStateOf(false) }
-    LaunchedEffect(model.loading, model.favorites.size, model.grid.size, model.isEmpty) {
-        if (!model.loading && !didInitialFocus) {
+    LaunchedEffect(model) {
+        if (!model.loading && (!didInitialFocus || refocusFirst)) {
             runCatching { firstFocus.requestFocus() }
             didInitialFocus = true
+            refocusFirst = false
         }
     }
 
-    BackHandler(enabled = actionsFor != null) {
-        actionsFor = null
-    }
+    BackHandler(enabled = moving != null) { moving = null }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        NatureBackground(mode = NatureBackgroundMode.Still)
+        NatureBackground()
         GlassScrim()
 
-        Column(
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(dimens.overscan)
-                .alpha(enterAlpha),
+                .graphicsLayer {
+                    alpha = enter
+                    translationY = (1f - enter) * 8.dp.toPx()
+                },
+            contentPadding = PaddingValues(top = dimens.overscan, bottom = dimens.overscan),
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = "Glass Home",
-                    color = colors.title,
-                    fontSize = type.titleSize,
-                )
-                val settingsModifier = if (model.isEmpty && !model.loading) {
-                    Modifier.focusRequester(firstFocus)
-                } else {
-                    Modifier
-                }
-                SettingsAction(
-                    onClick = { controller.openSettings() },
-                    modifier = settingsModifier,
+            item(key = "hero") {
+                Hero(
+                    onWifi = vm::openWifi,
+                    onBluetooth = vm::openBluetooth,
+                    onSettings = vm::openSettings,
+                    settingsModifier = if (model.isEmpty && !model.loading) Modifier.focusRequester(firstFocus) else Modifier,
+                    modifier = Modifier.padding(horizontal = dimens.overscan),
                 )
             }
-
-            Spacer(modifier = Modifier.height(dimens.titleToFavorites))
+            item(key = "hero-gap") { Spacer(modifier = Modifier.height(dimens.rowGap)) }
 
             when {
-                model.loading -> {
-                    Text(
-                        text = "Loading apps…",
-                        color = colors.labelMuted,
-                        fontSize = type.hintSize,
-                    )
-                }
-                model.isEmpty -> {
-                    Text(
-                        text = model.emptyHint.orEmpty(),
-                        color = colors.labelMuted,
-                        fontSize = type.hintSize,
-                    )
-                }
+                model.loading -> item(key = "loading") { Hint("Loading apps…") }
+                model.isEmpty -> item(key = "empty") { Hint(model.emptyHint.orEmpty()) }
                 else -> {
-                    Text(
-                        text = "Favorites",
-                        color = colors.labelMuted,
-                        fontSize = type.hintSize,
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    if (model.favorites.isEmpty()) {
-                        Text(
-                            text = "Hold OK on an app to pin it here.",
-                            color = colors.labelMuted,
-                            fontSize = type.hintSize,
-                        )
-                    } else {
-                        FavoritesRow(
-                            favorites = model.favorites,
-                            onLaunch = controller::launch,
-                            onLongPress = { actionsFor = it },
-                            modifier = Modifier,
-                            firstItemModifier = Modifier.focusRequester(firstFocus),
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(dimens.rowGap))
-
-                    Text(
-                        text = "Apps",
-                        color = colors.labelMuted,
-                        fontSize = type.hintSize,
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    AppsGrid(
-                        apps = model.grid,
-                        onLaunch = controller::launch,
-                        onLongPress = { actionsFor = it },
-                        modifier = Modifier.weight(1f, fill = true),
-                        firstItemModifier = if (model.favorites.isEmpty()) {
-                            Modifier.focusRequester(firstFocus)
+                    item(key = "favorites-header") { SectionHeader("Favorites") }
+                    item(key = "favorites") {
+                        if (model.favorites.isEmpty()) {
+                            Hint("Hold OK on an app to pin it here.")
                         } else {
-                            Modifier
+                            FavoritesRow(
+                                favorites = model.favorites,
+                                onLaunch = vm::launch,
+                                onLongPress = {
+                                    actionsFor = it
+                                    actionsFromFavorites = true
+                                },
+                                moving = moving,
+                                onMove = vm::moveFavorite,
+                                onMoveDone = { moving = null },
+                                firstItemModifier = Modifier.focusRequester(firstFocus),
+                            )
+                        }
+                    }
+                    item(key = "favorites-gap") { Spacer(modifier = Modifier.height(dimens.rowGap - 8.dp)) }
+                    item(key = "apps-header") { SectionHeader("Apps") }
+                    appsGrid(
+                        apps = model.grid,
+                        columns = dimens.gridColumnsHd,
+                        tileWidth = dimens.gridTileWidth,
+                        tileHeight = dimens.gridTileHeight,
+                        gapH = dimens.gridGapH,
+                        gapV = dimens.gridGapV,
+                        horizontalInset = dimens.overscan,
+                        hidden = model.hidden,
+                        hiddenInstalledCount = model.hiddenInstalledCount,
+                        showingHidden = model.showingHidden,
+                        onLaunch = vm::launch,
+                        onLongPress = {
+                            actionsFor = it
+                            actionsFromFavorites = false
                         },
+                        onToggleHidden = vm::toggleShowHidden,
+                        firstItemModifier = if (model.favorites.isEmpty()) Modifier.focusRequester(firstFocus) else Modifier,
                     )
                 }
             }
         }
 
         actionsFor?.let { entry ->
-            val pinned = model.favorites.any { it.componentKey == entry.componentKey }
-            ActionOverlay(
+            val pinned = model.favorites.any { it.packageName == entry.packageName }
+            val hidden = entry.packageName in model.hidden
+            ActionSheet(
                 label = entry.label,
-                pinned = pinned,
-                onInfo = {
-                    actionsFor = null
-                    controller.openAppInfo(entry)
-                },
-                onTogglePin = {
-                    controller.setPinned(entry, pinned = !pinned)
-                    actionsFor = null
+                actions = buildList {
+                    add((if (pinned) "Unpin" else "Pin to Favorites") to {
+                        vm.setPinned(entry, pinned = !pinned)
+                        if (pinned) refocusFirst = true
+                    })
+                    if (pinned && actionsFromFavorites && model.favorites.size > 1) add("Move" to { moving = entry })
+                    add((if (hidden) "Unhide" else "Hide") to {
+                        vm.setHidden(entry, hidden = !hidden)
+                        if (!hidden) refocusFirst = true
+                    })
+                    add("App info" to { vm.openAppInfo(entry) })
                 },
                 onClose = { actionsFor = null },
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(dimens.overscan),
             )
         }
 
@@ -198,7 +181,9 @@ fun HomeScreen() {
                 fontSize = type.hintSize,
                 modifier = Modifier
                     .align(Alignment.BottomStart)
-                    .padding(dimens.overscan),
+                    .padding(dimens.overscan)
+                    .background(colors.cardFillFocused, RoundedCornerShape(12.dp))
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
             )
         }
     }
@@ -206,52 +191,99 @@ fun HomeScreen() {
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-private fun ActionOverlay(
-    label: String,
-    pinned: Boolean,
-    onInfo: () -> Unit,
-    onTogglePin: () -> Unit,
-    onClose: () -> Unit,
+private fun Hero(
+    onWifi: () -> Unit,
+    onBluetooth: () -> Unit,
+    onSettings: () -> Unit,
+    settingsModifier: Modifier,
     modifier: Modifier = Modifier,
 ) {
     val colors = GlassTheme.colors
     val type = GlassTheme.type
-    val infoFocus = remember { FocusRequester() }
-    LaunchedEffect(label) {
-        runCatching { infoFocus.requestFocus() }
+    val now = rememberClock()
+    Row(modifier = modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = now.time,
+                color = colors.title,
+                fontSize = type.clockSize,
+                fontWeight = FontWeight.Light,
+                letterSpacing = (-1).sp,
+            )
+            Text(text = now.date, color = colors.labelMuted, fontSize = type.dateSize)
+        }
+        Row(
+            modifier = Modifier.padding(top = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            GlassPill(text = "Wi‑Fi", onClick = onWifi, width = 96.dp)
+            GlassPill(text = "Bluetooth", onClick = onBluetooth, width = 120.dp)
+            GlassPill(text = "Settings", onClick = onSettings, width = 112.dp, modifier = settingsModifier)
+        }
     }
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(
-            text = label,
-            color = colors.title,
-            fontSize = type.cardLabelSize,
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            GlassCard(
-                onClick = onInfo,
-                width = 180.dp,
-                height = 64.dp,
-                modifier = Modifier.focusRequester(infoFocus),
-            ) {
-                Text(text = "App info", color = colors.label, fontSize = type.cardLabelSize)
-            }
-            GlassCard(
-                onClick = onTogglePin,
-                width = 180.dp,
-                height = 64.dp,
-            ) {
-                Text(
-                    text = if (pinned) "Unpin" else "Pin",
-                    color = colors.label,
-                    fontSize = type.cardLabelSize,
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun SectionHeader(text: String) {
+    Text(
+        text = text.uppercase(),
+        color = GlassTheme.colors.labelMuted,
+        fontSize = GlassTheme.type.sectionSize,
+        fontWeight = FontWeight.Medium,
+        letterSpacing = GlassTheme.type.sectionTracking,
+        modifier = Modifier.padding(
+            start = GlassTheme.dimens.overscan,
+            bottom = GlassTheme.dimens.headerToRow,
+        ),
+    )
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun Hint(text: String) {
+    Text(
+        text = text,
+        color = GlassTheme.colors.labelMuted,
+        fontSize = GlassTheme.type.hintSize,
+        modifier = Modifier.padding(horizontal = GlassTheme.dimens.overscan),
+    )
+}
+
+/** Dialog window: focus can't reach the grid behind it, and Back closes it. */
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun ActionSheet(
+    label: String,
+    actions: List<Pair<String, () -> Unit>>,
+    onClose: () -> Unit,
+) {
+    val colors = GlassTheme.colors
+    val shape = RoundedCornerShape(24.dp)
+    val firstAction = remember { FocusRequester() }
+    Dialog(onDismissRequest = onClose) {
+        LaunchedEffect(Unit) { runCatching { firstAction.requestFocus() } }
+        Column(
+            modifier = Modifier
+                .width(360.dp)
+                .background(Color(0xF2141820), shape)
+                .border(1.dp, colors.cardEdge, shape)
+                .padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(text = label, color = colors.title, fontSize = 20.sp, fontWeight = FontWeight.Medium)
+            Spacer(modifier = Modifier.height(4.dp))
+            actions.forEachIndexed { index, (text, action) ->
+                GlassPill(
+                    text = text,
+                    onClick = {
+                        onClose()
+                        action()
+                    },
+                    width = 312.dp,
+                    height = 48.dp,
+                    modifier = if (index == 0) Modifier.focusRequester(firstAction) else Modifier,
                 )
-            }
-            GlassCard(
-                onClick = onClose,
-                width = 140.dp,
-                height = 64.dp,
-            ) {
-                Text(text = "Close", color = colors.label, fontSize = type.cardLabelSize)
             }
         }
     }

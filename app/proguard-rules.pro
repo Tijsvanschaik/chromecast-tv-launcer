@@ -1,1 +1,1 @@
-# v1 sideload — keep default keep rules empty for debug builds.
+# R8 needs no extra keep rules (verified with assembleRelease).

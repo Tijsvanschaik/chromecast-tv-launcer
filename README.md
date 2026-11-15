@@ -1,40 +1,50 @@
 # Glass Home (chromecast-tv-launcer)
 
-Sideloadable Android TV / Google TV home *candidate* — dark liquid glass over a calm nature plate.
+Sideloadable Android TV / Google TV home *candidate* — dark liquid glass over calm nature plates.
 
 **Application id:** `com.local.glasshome`  
 **Stack:** Kotlin, Compose for TV (`androidx.tv.material3`)  
-**v1:** Opens from the Apps row. Stock Google TV Home stays enabled.
+**Home button:** Opens from the Apps row. Stock Google TV Home stays enabled.
 
 ## Modules
 
 | Module | Path | Role |
 | --- | --- | --- |
-| `:app` | `app/` | Single home Activity + wiring |
-| `:glass` | `glass/` | Theme, `GlassCard`, scrim, focus |
-| `:apps` | `apps/` | Installed apps, favorites pins, launch, app info |
-| `:background` | `background/` | Calm still nature plate |
+| `:app` | `app/` | Single home Activity, hero clock, quick settings, action sheet |
+| `:glass` | `glass/` | Theme, `GlassCard`, `GlassPill`, scrim, focus |
+| `:apps` | `apps/` | Installed apps, `AppsViewModel`, pins/hidden store, banner art, launch, app info |
+| `:background` | `background/` | Rotating calm still plates |
+
+## What v2 does
+
+- Clock and date hero with Wi‑Fi, Bluetooth and Settings shortcuts.
+- Favorites and Apps use each app's TV banner as the card face. The name fades in under the focused card.
+- Must-keeps (YouTube, Netflix and the rest) sort to the front, matched by package id, then by exact label. First launch pins them.
+- Hold OK for Pin/Unpin, Move (favorites: Left/Right, then OK), Hide/Unhide, App info. Hidden apps are listed behind a "Hidden apps" button.
+- Pins and hidden apps are stored per package. They survive app updates and temporary disables and are removed only on uninstall.
+- Four calm stills rotate every 3 hours. No live blur, no continuous animation.
 
 ## Build
 
 ```bash
-./gradlew :app:assembleDebug
+./gradlew :apps:testDebugUnitTest :app:lintDebug :app:assembleDebug
 ```
 
-Debug APK: `app/build/outputs/apk/debug/app-debug.apk`
+Release (R8 + resource shrinking, about 2 MB) is signed when these are set:
 
-## What v0.2 does
+```bash
+export GLASSHOME_KEYSTORE=/path/glasshome-release.jks
+export GLASSHOME_KEYSTORE_PASSWORD=… GLASSHOME_KEY_ALIAS=glasshome GLASSHOME_KEY_PASSWORD=…
+./gradlew :app:assembleRelease   # app/build/outputs/apk/release/app-release.apk
+```
 
-- Lists installed TV and phone-launcher apps. Must-keeps (YouTube, Netflix, and the rest) sort to the front when that label is installed.
-- OK launches the app. Hold OK for App info or Pin / Unpin.
-- First launch pins the installed must-keeps. Pin order is stored on the device.
-- Calm still behind frosted cards. Stock Home still owns the Home button.
+CI (`.github/workflows/android.yml`) runs tests, lint and a debug build on every PR. Pushing a `v*` tag builds the signed release and attaches `glasshome-<tag>.apk` to a GitHub Release. Required repo secrets: `GLASSHOME_KEYSTORE_BASE64`, `GLASSHOME_KEYSTORE_PASSWORD`, `GLASSHOME_KEY_ALIAS`, `GLASSHOME_KEY_PASSWORD`. Always use the same keystore, because a different key cannot update an installed build.
 
 ## Sideload
 
 ```bash
-./gradlew :app:assembleDebug
-adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb uninstall com.local.glasshome          # one time only, when switching from a debug build
+adb install -r glasshome-v2.0.0.apk
 ```
 
-Open **Glass Home** from the Apps row. Uninstall with `adb uninstall com.local.glasshome`. Do not disable stock Home.
+Open **Glass Home** from the Apps row. Do not disable stock Home.

@@ -31,6 +31,5 @@ dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.foundation)
-    implementation(libs.androidx.tv.foundation)
     implementation(libs.androidx.tv.material)
 }
